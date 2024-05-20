@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerenciador de Dívidas</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        input, button, select {
+            display: block;
+            width: 100%;
+            margin: 10px 0;
+            padding: 10px;
+            font-size: 16px;
+        }
+        table {
+            width: 100%;
+            margin-top: 20px;
+            border-collapse: collapse;
+            background-color: #e6ffcc; /* Verde claro */
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #ccff99; /* Verde claro */
+        }
+        .payment-input {
+            width: 70%;
+            display: inline-block;
+        }
+        .payment-button {
+            width: 25%;
+            display: inline-block;
+        }
+        #history {
+            margin-top: 20px;
+        }
+        #history li {
+            margin-bottom: 5px;
+        }
+        #paymentImage {
+            display: none;
+            width: 100px;
+            height: 100px;
+            margin: 20px auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Gerenciador de Dívidas</h1>
+        <div>
+            <label for="debtName">Nome da Dívida:</label>
+            <input type="text" id="debtName" placeholder="Digite o nome da dívida">
+            <label for="initialDebt">Valor da Dívida:</label>
+            <input type="number" id="initialDebt" placeholder="Digite o valor da dívida">
+            <button onclick="addDebt()">Adicionar Dívida</button>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Nome da Dívida</th>
+                    <th>Valor</th>
+                    <th>Adicionar Pagamento</th>
+                </tr>
+            </thead>
+            <tbody id="debtTable"></tbody>
+        </table>
+        <button onclick="resetData()">Resetar Dados</button>
+        <h2>Total da Dívida: <span id="totalDebt">0</span></h2>
+        <h2>Histórico de Pagamentos</h2>
+        <ul id="history"></ul>
+        <img id="paymentImage" src="payment.png" alt="Pagamento">
+        <audio id="paymentSound"> <source src="payment-sound.mp3"> </audio>
+    </div>
+
+    <script>
+        let debts = [];
+
+        document.addEventListener('DOMContentLoaded', (event) => {
+            loadStoredData();
+        });
+
+        function addDebt() {
+            const debtNameInput = document.getElementById('debtName');
+            const debtValueInput = document.getElementById('initialDebt');
+            const debtName = debtNameInput.value.trim();
+            const debtValue = parseFloat(debtValueInput.value);
+
+            if (debtName && !isNaN(debtValue) && debtValue > 0) {
+                debts.push({ name: debtName, value: debtValue, payments: [] });
+                storeData();
+                updateDebtTable();
+                updateTotalDebt();
+                debtNameInput.value = '';
+                debtValueInput.value = '';
+            }
+        }
+
+        function addPayment(index) {
+            const paymentInput = document.querySelector(`#paymentInput-${index}`);
+            const payment = parseFloat(paymentInput.value);
+
+            if (!isNaN(payment) && payment > 0) {
+                debts[index].value -= payment;
+                debts[index].payments.push(payment);
+                if (debts[index].value <= 0) {
+                    completeDebt(index);
+                } else {
+                    storeData();
+                    updateDebtTable();
+                    updateTotalDebt();
+                    updateDisplay();
+                    showImageAndPlaySound();
+                }
+            }
+            paymentInput.value = '';
+        }
+
+        function completeDebt(index) {
+            debts.splice(index, 1);
+            storeData();
+            updateDebtTable();
+            updateTotalDebt();
+            updateDisplay();
+        }
+
+        function resetData() {
+            debts = [];
+            localStorage.removeItem('debtData');
+            updateDebtTable();
+            updateTotalDebt();
+            updateDisplay();
+        }
+
+        function updateDebtTable() {
+            const debtTable = document.getElementById('debtTable');
+            debtTable.innerHTML = '';
+            debts.forEach((debt, index) => {
+                const row = document.createElement('tr');
+
+                const nameCell = document.createElement('td');
+                nameCell.innerText = debt.name;
+                row.appendChild(nameCell);
+
+                const valueCell = document.createElement('td');
+                valueCell.innerText = `R$ ${debt.value.toFixed(2)}`;
+                row.appendChild(valueCell);
+
+                const paymentCell = document.createElement('td');
+                const paymentInput = document.createElement('input');
+                paymentInput.type = 'number';
+                paymentInput.id = `paymentInput-${index}`;
+                paymentInput.placeholder = 'Valor do pagamento';
+                paymentInput.className = 'payment-input';
+                const paymentButton = document.createElement('button');
+                paymentButton.innerText = 'Adicionar Pagamento';
+                paymentButton.className = 'payment-button';
+                paymentButton.onclick = () => addPayment(index);
+                paymentCell.appendChild(paymentInput);
+                paymentCell.appendChild(paymentButton);
+                row.appendChild(paymentCell);
+
+                debtTable.appendChild(row);
+            });
+        }
+
+        function updateTotalDebt() {
+            const totalDebt = debts.reduce((sum, debt) => sum + debt.value, 0);
+            document.getElementById('totalDebt').innerText = totalDebt.toFixed(2);
+        }
+
+        function updateDisplay() {
+            const historyList = document.getElementById('history');
+            historyList.innerHTML = '';
+            debts.forEach((debt, debtIndex) => {
+                debt.payments.forEach((payment, paymentIndex) => {
+                    const listItem = document.createElement('li');
+                    listItem.innerText = `${debt.name} - Pagamento ${paymentIndex + 1}: R$ ${payment.toFixed(2)}`;
+                    historyList.appendChild(listItem);
+                });
+            });
+        }
+
+        function storeData() {
+            localStorage.setItem('debtData', JSON.stringify(debts));
+        }
+
+        function loadStoredData() {
+            const storedData = localStorage.getItem('debtData');
+            if (storedData) {
+                debts = JSON.parse(storedData);
+                updateDebtTable();
+                updateTotalDebt();
+                updateDisplay();
+            }
+        }
+
+        function showImageAndPlaySound() {
+            const paymentImage = document.getElementById('paymentImage');
+            const paymentSound = document.getElementById('paymentSound');
+            paymentImage.style.display = 'block';
+            paymentSound.play();
+            setTimeout(() => {
+                paymentImage.style.display = 'none';
+            }, 2000);
+        }
+    </script>
+</body>
+</html>
+
+
+
+
+
+
